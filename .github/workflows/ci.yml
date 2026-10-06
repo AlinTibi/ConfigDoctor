@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+env:
+  GOFLAGS: -trimpath
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Install matching Wails CLI
+        shell: pwsh
+        run: |
+          $Version = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$Version"
+      - run: wails build -clean -s
+      - run: ./scripts/package.ps1 -Tag v1.0.0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ConfigDoctor-release-candidate-win-x64
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+          retention-days: 14

@@ -1,0 +1,50 @@
+name: Windows portable release
+on:
+  push:
+    tags: ["v*"]
+env:
+  GOFLAGS: -trimpath
+  RELEASE_TAG: ${{ github.ref_name }}
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Install matching Wails CLI
+        shell: pwsh
+        run: |
+          $Version = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$Version"
+      - name: Set tagged product version
+        shell: pwsh
+        run: |
+          $Version = $env:RELEASE_TAG -replace '^v',''
+          if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Only stable semantic release tags are supported.' }
+          $Config = Get-Content wails.json -Raw | ConvertFrom-Json
+          $Config.info.productVersion = $Version
+          $Config | ConvertTo-Json -Depth 10 | Set-Content wails.json -Encoding utf8NoBOM
+      - run: wails build -clean -s
+      - run: ./scripts/package.ps1 -Tag $env:RELEASE_TAG
+      - name: Publish explicitly tagged release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Tag = $env:RELEASE_TAG
+          gh release create $Tag "artifacts/ConfigDoctor-$Tag-win-x64.zip" "artifacts/ConfigDoctor-$Tag-win-x64.zip.sha256" --verify-tag --title "Config Doctor $Tag" --generate-notes

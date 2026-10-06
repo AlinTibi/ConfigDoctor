@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible problem with Config Doctor
+body:
+  - type: markdown
+    attributes:
+      value: "Use fake configuration values only. Never attach credentials, private files or unmasked screenshots."
+  - type: input
+    id: version
+    attributes:
+      label: Application and Windows version
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include format and a minimal fake input
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true

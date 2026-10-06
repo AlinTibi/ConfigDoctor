@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://almarfeld.com/security/
+    about: Report vulnerabilities privately; do not disclose them in an issue.
+  - name: General support
+    url: https://almarfeld.com/support/
+    about: Contact ALMARFELD for general support.

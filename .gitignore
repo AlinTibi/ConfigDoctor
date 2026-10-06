@@ -1,0 +1,9 @@
+/build/bin/
+/frontend/node_modules/
+/frontend/dist/
+/frontend/wailsjs/
+*.syso
+*.log
+/artifacts/
+/smoke-output/
+.DS_Store

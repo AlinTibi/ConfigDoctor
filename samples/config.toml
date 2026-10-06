@@ -1,0 +1,6 @@
+enabled = true
+services = ["api", "web"]
+[database]
+host = "localhost"
+port = 5432
+password = "fake-sample-password"
