@@ -22,7 +22,7 @@ An offline Windows utility for inspecting, comparing and preparing example confi
 
 Target: **Windows 10/11 x64**. Microsoft Edge **WebView2 Runtime** must already be installed; Config Doctor does not download it automatically.
 
-The current public release is [v1.0.0](https://github.com/AlinTibi/ConfigDoctor/releases/tag/v1.0.0). This branch prepares the v1.1.0 release candidate, available as a portable ZIP artifact from the pull request workflow. Extract the entire ZIP into a new folder and run `ConfigDoctor.exe`. No administrator privileges are required. Compare the ZIP SHA-256 against the accompanying `.sha256` file before extraction.
+Download [v1.1.0](https://github.com/AlinTibi/ConfigDoctor/releases/tag/v1.1.0), the current public release. Extract the entire portable ZIP into a new folder and run `ConfigDoctor.exe`. No administrator privileges are required. Compare the ZIP SHA-256 against the accompanying `.sha256` file before extraction.
 
 Safe sample configurations are included in `samples/`. They contain fake values only. Source configurations are read-only. Generated examples and reports must be saved to **new files**; existing files cannot be overwritten.
 
@@ -59,7 +59,7 @@ wails build -clean -s -webview2 browser
 ./scripts/package.ps1 -Tag v1.1.0
 ```
 
-Executable: `build/bin/ConfigDoctor.exe`. Package: `artifacts/ConfigDoctor-v1.1.0-win-x64.zip`, with the corresponding `.sha256` file. This is a local release candidate; publishing requires an approved release tag.
+Executable: `build/bin/ConfigDoctor.exe`. Package: `artifacts/ConfigDoctor-v1.1.0-win-x64.zip`, with the corresponding `.sha256` file. The release workflow publishes portable packages for explicitly pushed release tags.
 
 ## Architecture
 
