@@ -1,4 +1,4 @@
-param([string]$Tag = 'v1.0.0')
+param([string]$Tag = 'v1.1.0')
 $ErrorActionPreference = 'Stop'
 if ($Tag -notmatch '^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$') { throw 'Use a semantic version tag.' }
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $Stage = Join-Path $OutputRoot ('portable-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Stage | Out-Null
 Copy-Item -LiteralPath $Executable -Destination (Join-Path $Stage 'ConfigDoctor.exe')
-foreach ($Name in @('LICENSE','README.md','SECURITY.md','SUPPORT.md','THIRD_PARTY_NOTICES.md')) { Copy-Item -LiteralPath (Join-Path $ProjectRoot $Name) -Destination $Stage }
+foreach ($Name in @('LICENSE','RELEASE_NOTES.md','README.md','SECURITY.md','SUPPORT.md','THIRD_PARTY_NOTICES.md')) { Copy-Item -LiteralPath (Join-Path $ProjectRoot $Name) -Destination $Stage }
 Copy-Item -LiteralPath (Join-Path $ProjectRoot 'samples') -Destination $Stage -Recurse
 if (Test-Path -LiteralPath (Join-Path $ProjectRoot 'licenses')) { Copy-Item -LiteralPath (Join-Path $ProjectRoot 'licenses') -Destination $Stage -Recurse }
 New-Item -ItemType Directory -Path (Join-Path $Stage 'docs/screenshots') -Force | Out-Null

@@ -688,3 +688,17 @@ textarea {
   flex: 1;
   min-width: 0;
 }
+.baseline-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding-bottom: 8px;
+}
+.baseline-controls .field-label {
+  flex: 1;
+  min-width: 260px;
+  max-width: none;
+}
+.baseline-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}

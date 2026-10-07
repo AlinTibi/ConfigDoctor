@@ -9,7 +9,7 @@
   "author": { "name": "AlinTibi", "email": "contact@almarfeld.com" },
   "info": {
     "productName": "Config Doctor",
-    "productVersion": "1.0.0",
+    "productVersion": "1.1.0",
     "companyName": "ALMARFELD",
     "copyright": "Copyright (c) 2026 AlinTibi",
     "comments": "Offline configuration inspection and comparison"

@@ -14,6 +14,8 @@ let files: Summary[] = [],
   prefs: Settings,
   mode = "inspect",
   selected = "",
+  actualID = "",
+  baselineID = "",
   page = 0,
   search = "",
   filter = "all",
@@ -30,7 +32,7 @@ const esc = (v: unknown) =>
         c
       ]!,
   );
-root.innerHTML = `<aside class="sidebar"><div class="brand">${icon}<div><strong>Config Doctor</strong><span>ALMARFELD</span></div></div><nav aria-label="Workspace"><button data-mode="inspect" class="active">Inspect</button><button data-mode="compare">Compare</button><button data-mode="generate">Generate example</button><button data-mode="settings">Settings</button></nav><div class="sidebar-note"><span class="dot"></span> Local workspace<p>Files stay on your computer.<br>No account or uploads.</p><small>v1.0.0 · Windows x64</small></div></aside><div class="workspace"><header><div><span class="eyebrow">Configuration workspace</span><h1 id="title">Inspect files</h1></div><div class="top-actions"><button id="add-files" class="primary">＋ Add files</button><button id="add-folder">Add folder</button><button id="export" disabled>Export report</button><button id="clear" disabled>Clear</button></div></header><div id="notice" role="status" class="notice" hidden></div><div id="file-list" class="file-list" aria-label="Loaded files"></div><div id="tools" class="tools" hidden><input id="search" type="search" placeholder="Search key names…" aria-label="Search key names"><select id="filter" aria-label="Filter results"><option value="all">All results</option><option value="errors">Errors</option><option value="warnings">Warnings</option><option value="missing">Missing / extra</option><option value="different">Different values</option><option value="empty">Empty values</option><option value="possible secrets">Possible secrets</option></select><label class="toggle"><input type="checkbox" id="reveal"> Reveal values</label></div><main id="content"></main><footer><span id="status">Ready</span><span id="counts">0 files · 0 errors · 0 warnings</span></footer></div><dialog id="dialog"><div class="dialog-heading"><h2 id="dialog-title"></h2><button id="dialog-close" aria-label="Close preview">✕</button></div><div id="dialog-controls"></div><pre id="preview" tabindex="0"></pre><div class="dialog-actions"><button id="dialog-cancel">Cancel</button><button id="dialog-save" class="primary">Save new file…</button></div></dialog>`;
+root.innerHTML = `<aside class="sidebar"><div class="brand">${icon}<div><strong>Config Doctor</strong><span>ALMARFELD</span></div></div><nav aria-label="Workspace"><button data-mode="inspect" class="active">Inspect</button><button data-mode="compare">Compare</button><button data-mode="baseline">Baseline</button><button data-mode="generate">Generate example</button><button data-mode="settings">Settings</button></nav><div class="sidebar-note"><span class="dot"></span> Local workspace<p>Files stay on your computer.<br>No account or uploads.</p><small>v1.1.0 · Windows x64</small></div></aside><div class="workspace"><header><div><span class="eyebrow">Configuration workspace</span><h1 id="title">Inspect files</h1></div><div class="top-actions"><button id="add-files" class="primary">＋ Add files</button><button id="add-folder">Add folder</button><button id="export" disabled>Export report</button><button id="clear" disabled>Clear</button></div></header><div id="notice" role="status" class="notice" hidden></div><div id="file-list" class="file-list" aria-label="Loaded files"></div><div id="tools" class="tools" hidden><input id="search" type="search" placeholder="Search key names…" aria-label="Search key names"><select id="filter" aria-label="Filter results"><option value="all">All results</option><option value="errors">Errors</option><option value="warnings">Warnings</option><option value="missing">Missing / extra</option><option value="extra">Extra actual keys</option><option value="present">Present baseline keys</option><option value="references">Unresolved / cyclic references</option><option value="different">Different values</option><option value="empty">Empty values</option><option value="possible secrets">Possible secrets</option></select><label class="toggle"><input type="checkbox" id="reveal"> Reveal values</label></div><main id="content"></main><footer><span id="status">Ready</span><span id="counts">0 files · 0 errors · 0 warnings</span></footer></div><dialog id="dialog"><div class="dialog-heading"><h2 id="dialog-title"></h2><button id="dialog-close" aria-label="Close preview">✕</button></div><div id="dialog-controls"></div><pre id="preview" tabindex="0"></pre><div class="dialog-actions"><button id="dialog-cancel">Cancel</button><button id="dialog-save" class="primary">Save new file…</button></div></dialog>`;
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 function notice(text: string) {
@@ -85,6 +87,14 @@ async function imported(result: Summary[]) {
   reveal = false;
   $<HTMLInputElement>("reveal").checked = false;
   if (!files.some((f) => f.id === selected)) selected = files[0]?.id || "";
+  const valid = files.filter((f) => f.valid);
+  if (!valid.some((f) => f.id === actualID))
+    actualID = valid.find((f) => f.name === ".env")?.id || valid[0]?.id || "";
+  if (!valid.some((f) => f.id === baselineID) || baselineID === actualID)
+    baselineID =
+      valid.find((f) => f.id !== actualID && f.name === ".env.example")?.id ||
+      valid.find((f) => f.id !== actualID)?.id ||
+      "";
   page = 0;
   drawFiles();
   await render();
@@ -113,6 +123,8 @@ function diagnostics(issues: Issue[]) {
       (filter !== "warnings" || i.severity === "warning") &&
       (filter !== "empty" || i.code === "empty") &&
       (filter !== "possible secrets" || i.code === "secret") &&
+      (filter !== "references" ||
+        ["unresolved reference", "cyclic reference"].includes(i.code)) &&
       (!search ||
         i.key.toLowerCase().includes(search.toLowerCase()) ||
         i.message.toLowerCase().includes(search.toLowerCase())),
@@ -137,6 +149,7 @@ async function render() {
     {
       inspect: "Inspect files",
       compare: "Compare configurations",
+      baseline: "Compare against baseline",
       generate: "Generate .env.example",
       settings: "Settings",
     } as Record<string, string>
@@ -146,10 +159,23 @@ async function render() {
     .forEach((b) =>
       b.classList.toggle("active", (b as HTMLElement).dataset.mode === mode),
     );
-  $("tools").hidden = !files.length || !["inspect", "compare"].includes(mode);
+  $("tools").hidden =
+    !files.length || !["inspect", "compare", "baseline"].includes(mode);
   for (const o of $<HTMLSelectElement>("filter").options)
     o.disabled =
-      mode === "inspect" && ["missing", "different"].includes(o.value);
+      (mode === "inspect" &&
+        ["missing", "different", "extra", "present"].includes(o.value)) ||
+      (mode !== "baseline" && ["extra", "present"].includes(o.value)) ||
+      (mode === "compare" && o.value === "references") ||
+      (mode === "baseline" && ["different", "errors"].includes(o.value));
+  $<HTMLSelectElement>("filter").querySelector(
+    'option[value="missing"]',
+  )!.textContent =
+    mode === "baseline" ? "Missing baseline keys" : "Missing / extra";
+  if ($<HTMLSelectElement>("filter").selectedOptions[0]?.disabled) {
+    filter = "all";
+    $<HTMLSelectElement>("filter").value = filter;
+  }
   if (mode === "settings") {
     renderSettings();
     return;
@@ -173,6 +199,56 @@ async function render() {
       if (token !== request) return;
       $("content").innerHTML =
         `<div class="metrics"><div><span>Syntax</span><strong class="${v.summary.valid ? "good" : "error-text"}">${v.summary.valid ? "Valid" : "Invalid"}</strong></div><div><span>Normalized entries</span><strong>${v.summary.keys.toLocaleString()}</strong></div><div><span>Empty values</span><strong>${v.summary.empty}</strong></div><div><span>Possible secrets</span><strong>${v.summary.secrets}</strong></div></div><section><div class="section-label"><h2>Key tree</h2><span>Containers and indexed arrays are explicit</span></div><div class="table-scroll"><table><thead><tr><th>Key path</th><th>Type</th><th>Value</th></tr></thead><tbody>${v.entries.map((e) => `<tr><td><code>${esc(e.key)}</code></td><td><span class="tag">${esc(e.type)}</span></td><td>${value(e)}</td></tr>`).join("") || '<tr><td colspan="3" class="muted">No matching entries. Review diagnostics below.</td></tr>'}</tbody></table></div>${paged(v.total, v.pages)}</section>${diagnostics(v.diagnostics)}`;
+      bindPages();
+    } else if (mode === "baseline") {
+      const options = (id: string) =>
+        `<option value="">Choose a file…</option>${files
+          .filter((f) => f.valid)
+          .map(
+            (f) =>
+              `<option value="${f.id}" ${f.id === id ? "selected" : ""}>${esc(f.name)} (${esc(f.format)})</option>`,
+          )
+          .join("")}`;
+      const controls = `<section class="baseline-controls"><label class="field-label">Actual configuration<select id="actual-file">${options(actualID)}</select></label><label class="field-label">Baseline / template<select id="baseline-file">${options(baselineID)}</select></label></section><p class="muted">Baseline keys indicate expected presence, not proven requiredness. Extra keys are informational. Empty template defaults do not make actual values missing. References use definitions in the actual file only.</p>`;
+      let body = "";
+      if (actualID && baselineID && actualID !== baselineID) {
+        const c = await api.CompareBaseline(actualID, baselineID, q);
+        if (token !== request) return;
+        const n = c.baseline!.counts;
+        body = `<div class="metrics baseline-metrics">${[
+          ["Missing baseline", n.missing],
+          ["Present", n.present],
+          ["Extra", n.extra],
+          ["Empty actual", n.empty],
+          ["Unresolved references", n.unresolved],
+          ["Reference cycles", n.cycles],
+        ]
+          .map(
+            ([label, count]) =>
+              `<div><span>${label}</span><strong>${count}</strong></div>`,
+          )
+          .join(
+            "",
+          )}</div><div class="table-scroll comparison"><table><thead><tr><th>Key path</th><th>Actual: ${esc(c.files[0].name)}</th><th>Baseline: ${esc(c.files[1].name)}</th><th>Status</th></tr></thead><tbody>${c.rows.map((r) => `<tr><th><code>${esc(r.key)}</code></th>${r.cells.map((cell) => `<td>${!cell.present ? '<span class="muted">Absent</span>' : value(cell.entry)}</td>`).join("")}<td>${r.status.map((s) => `<span class="tag ${s === "present" ? "good" : s === "extra" ? "info" : "warning"}">${esc(s)}</span>`).join("")}</td></tr>`).join("")}</tbody></table>${c.rows.length ? "" : '<p class="muted">No matching keys.</p>'}</div>${paged(c.total, c.pages)}`;
+        const v = await api.Inspect(actualID, {
+          ...q,
+          filter: filter === "references" ? "references" : "all",
+        });
+        if (token !== request) return;
+        body += diagnostics(v.diagnostics);
+      } else
+        body =
+          '<p class="muted">Choose two different syntax-valid files. Inspect files with validation errors before using them as an actual configuration or baseline.</p>';
+      $("content").innerHTML = controls + body;
+      for (const id of ["actual-file", "baseline-file"])
+        $(id).onchange = () => {
+          actualID = $<HTMLSelectElement>("actual-file").value;
+          baselineID = $<HTMLSelectElement>("baseline-file").value;
+          page = 0;
+          reveal = false;
+          $<HTMLInputElement>("reveal").checked = false;
+          void render();
+        };
       bindPages();
     } else if (mode === "compare") {
       const c = await api.Compare(q);
@@ -424,12 +500,37 @@ $("filter").onchange = () => {
 $("export").onclick = () =>
   void run(async () => {
     const format = prefs.exportFormat;
+    const baselineExport = mode === "baseline";
+    const exportActual = actualID,
+      exportBaseline = baselineID;
+    const previewReport = (f: string) =>
+      baselineExport
+        ? api.PreviewBaselineReport(exportActual, exportBaseline, f)
+        : api.PreviewReport(f, false);
+    const saveReport = (
+      f: string,
+      include: boolean,
+      path: string,
+      reviewed: boolean,
+      confirmed: boolean,
+    ) =>
+      baselineExport
+        ? api.SaveBaselineReportTo(
+            exportActual,
+            exportBaseline,
+            f,
+            include,
+            path,
+            reviewed,
+            confirmed,
+          )
+        : api.SaveReportTo(f, include, path, reviewed, confirmed);
     showDialog(
       "Export " + format.toUpperCase() + " report",
-      await api.PreviewReport(format, false),
+      await previewReport(format),
       `<label class="field-label">Report format<select id="report-format">${["html", "json", "txt"].map((f) => `<option value="${f}" ${f === format ? "selected" : ""}>${f.toUpperCase()}</option>`).join("")}</select></label>${destinationControls(format)}<label class="toggle"><input id="include-values" type="checkbox"> Include values (may expose secrets)</label><p class="muted">Preview is masked. Including real values requires a second confirmation. File names and keys remain visible.</p><label class="toggle" id="values-warning" hidden><input id="confirm-values" type="checkbox"> I understand this report will contain real values, including possible secrets.</label>`,
       async () =>
-        api.SaveReportTo(
+        saveReport(
           $<HTMLSelectElement>("report-format").value,
           $<HTMLInputElement>("include-values").checked,
           $<HTMLInputElement>("destination").value,
@@ -442,7 +543,7 @@ $("export").onclick = () =>
       void run(async () => {
         const f = $<HTMLSelectElement>("report-format").value;
         $("dialog-title").textContent = "Export " + f.toUpperCase() + " report";
-        $("preview").textContent = await api.PreviewReport(f, false);
+        $("preview").textContent = await previewReport(f);
         $<HTMLInputElement>("destination").value = "";
         $<HTMLInputElement>("reviewed").checked = false;
         bindDestination(f);

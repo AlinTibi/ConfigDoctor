@@ -125,6 +125,9 @@ func Parse(name string, data []byte) *Document {
 			d.Entries = []Entry{}
 		}
 	}
+	if d.Format == "env" && d.Valid {
+		d.diagnoseReferences()
+	}
 	for _, e := range d.Entries {
 		if e.Empty {
 			d.Issue("warning", "empty", e.Key, 0, "Empty value.")
@@ -253,13 +256,25 @@ func (d *Document) yamlValue(n *yaml.Node, path string, depth int, active map[*y
 }
 
 func (d *Document) parseEnv(source string) error {
-	// godotenv parses syntax and interpolation without touching process environment.
-	values, err := godotenv.Unmarshal(source)
+	// Keep expressions intact: interpolation would silently erase undefined names.
+	// The marker cannot collide with source text and is restored after syntax parsing.
+	marker := "CONFIG_DOCTOR_LITERAL_DOLLAR_"
+	for strings.Contains(source, marker) {
+		marker += "_"
+	}
+	refMarker := "CONFIG_DOCTOR_REFERENCE_"
+	for strings.Contains(source, refMarker) {
+		refMarker += "_"
+	}
+	values, err := godotenv.Unmarshal(strings.ReplaceAll(source, "$", marker))
 	if err != nil {
 		return err
 	}
 	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
 	seen := map[string]bool{}
+	d.EnvReferences = map[string][]EnvReference{}
+	d.envExpressions = map[string]envExpression{}
+	referenceCount := 0
 	for i := 0; i < len(lines); i++ {
 		raw := lines[i]
 		line := i + 1
@@ -283,6 +298,7 @@ func (d *Document) parseEnv(source string) error {
 			d.Issue("warning", "whitespace", key, line, "Whitespace around the key or assignment.")
 		}
 		v := strings.TrimSpace(right)
+		rawValue := v
 		if len(v) > 0 && (v[0] == '\'' || v[0] == '"') {
 			quote := v[0]
 			part := v[1:]
@@ -293,6 +309,29 @@ func (d *Document) parseEnv(source string) error {
 				}
 				part += "\n" + lines[i]
 			}
+			rawValue = string(quote) + part
+		}
+		refs, unsupported := scanEnvReferences(rawValue, line)
+		referenceCount += len(refs)
+		if referenceCount > MaxEntries {
+			return fmt.Errorf("too many entries")
+		}
+		d.EnvReferences[key] = refs
+		tokenized := rawValue
+		tokens := map[string]string{}
+		for j := len(refs) - 1; j >= 0; j-- {
+			ref := refs[j]
+			token := fmt.Sprintf("%s%d_END", refMarker, j)
+			tokenized = tokenized[:ref.Start] + token + tokenized[ref.End:]
+			tokens[token] = ref.Name
+		}
+		parsed, parseErr := godotenv.Unmarshal("CONFIGVALUE=" + strings.ReplaceAll(tokenized, "$", marker))
+		if parseErr != nil {
+			return parseErr
+		}
+		d.envExpressions[key] = envExpression{value: strings.ReplaceAll(parsed["CONFIGVALUE"], marker, "$"), tokens: tokens}
+		if unsupported {
+			d.Issue("info", "env_expression", key, line, "Complex .env expression is not evaluated. Only $NAME and ${NAME} references are diagnosed.")
 		}
 		d.EnvLines = append(d.EnvLines, EnvLine{Key: key, Line: line})
 		if seen[key] {
@@ -300,7 +339,8 @@ func (d *Document) parseEnv(source string) error {
 			continue
 		}
 		seen[key] = true
-		if err := d.Add(key, "string", values[key], 0); err != nil {
+		value := strings.ReplaceAll(values[key], marker, "$")
+		if err := d.Add(key, "string", value, 0); err != nil {
 			return err
 		}
 	}
@@ -308,7 +348,7 @@ func (d *Document) parseEnv(source string) error {
 }
 func quoteClosed(s string, q byte) bool {
 	for i := 0; i < len(s); i++ {
-		if s[i] == '\\' && q == '"' {
+		if s[i] == '\\' {
 			i++
 			continue
 		}

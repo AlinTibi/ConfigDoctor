@@ -47,6 +47,18 @@ export interface Cell {
   entry: Entry;
 }
 export interface Comparison {
+  baseline?: {
+    actual: string;
+    template: string;
+    counts: {
+      missing: number;
+      present: number;
+      extra: number;
+      empty: number;
+      unresolved: number;
+      cycles: number;
+    };
+  };
   files: Summary[];
   rows: { key: string; status: string[]; cells: Cell[] }[];
   total: number;
@@ -77,6 +89,25 @@ declare global {
           LoadPaths: (paths: string[]) => Promise<Summary[]>;
           Inspect: (id: string, q: Query) => Promise<View>;
           Compare: (q: Query) => Promise<Comparison>;
+          CompareBaseline: (
+            actual: string,
+            baseline: string,
+            q: Query,
+          ) => Promise<Comparison>;
+          PreviewBaselineReport: (
+            actual: string,
+            baseline: string,
+            format: string,
+          ) => Promise<string>;
+          SaveBaselineReportTo: (
+            actual: string,
+            baseline: string,
+            format: string,
+            include: boolean,
+            path: string,
+            reviewed: boolean,
+            confirmedValues: boolean,
+          ) => Promise<string>;
           PreviewExample: (id: string, safe: boolean) => Promise<string>;
           SaveExample: (id: string, safe: boolean) => Promise<string>;
           SaveExampleTo: (

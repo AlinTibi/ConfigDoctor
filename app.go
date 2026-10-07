@@ -249,6 +249,59 @@ func (a *App) Compare(q config.Query) config.Comparison {
 	defer a.mu.RUnlock()
 	return config.Compare(a.docs, q)
 }
+func (a *App) baselineFiles(actualID, baselineID string) (*config.Document, *config.Document, error) {
+	var actual, baseline *config.Document
+	for _, d := range a.docs {
+		if d.ID == actualID {
+			actual = d
+		}
+		if d.ID == baselineID {
+			baseline = d
+		}
+	}
+	if actual == nil || baseline == nil {
+		return nil, nil, fmt.Errorf("choose both a loaded actual file and a baseline")
+	}
+	return actual, baseline, nil
+}
+func (a *App) CompareBaseline(actualID, baselineID string, q config.Query) (config.Comparison, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	actual, baseline, err := a.baselineFiles(actualID, baselineID)
+	if err != nil {
+		return config.Comparison{}, err
+	}
+	return config.Baseline(actual, baseline, q)
+}
+func (a *App) PreviewBaselineReport(actualID, baselineID, format string) (string, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	actual, baseline, err := a.baselineFiles(actualID, baselineID)
+	if err != nil {
+		return "", err
+	}
+	data, err := config.Export([]*config.Document{actual, baseline}, format, false, actual, baseline)
+	if len(data) > 256*1024 {
+		return string(data[:256*1024]) + "\n[Preview excerpt. The complete report will be saved.]", err
+	}
+	return string(data), err
+}
+func (a *App) SaveBaselineReportTo(actualID, baselineID, format string, include bool, path string, reviewed, confirmedValues bool) (string, error) {
+	if !reviewed || include && !confirmedValues {
+		return "", fmt.Errorf("review the destination and explicitly confirm any included values")
+	}
+	a.mu.RLock()
+	actual, baseline, err := a.baselineFiles(actualID, baselineID)
+	var data []byte
+	if err == nil {
+		data, err = config.Export([]*config.Document{actual, baseline}, format, include, actual, baseline)
+	}
+	a.mu.RUnlock()
+	if err != nil {
+		return "", err
+	}
+	return a.writeOutput(data, path)
+}
 func (a *App) PreviewExample(id string, keepSafe bool) (string, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()

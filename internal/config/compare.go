@@ -27,11 +27,12 @@ type Query struct {
 	Reveal bool   `json:"reveal"`
 }
 type Comparison struct {
-	Files []Summary `json:"files"`
-	Rows  []Row     `json:"rows"`
-	Total int       `json:"total"`
-	Page  int       `json:"page"`
-	Pages int       `json:"pages"`
+	Baseline *BaselineInfo `json:"baseline,omitempty"`
+	Files    []Summary     `json:"files"`
+	Rows     []Row         `json:"rows"`
+	Total    int           `json:"total"`
+	Page     int           `json:"page"`
+	Pages    int           `json:"pages"`
 }
 
 func Compare(docs []*Document, q Query) Comparison {
@@ -173,7 +174,7 @@ type DocumentView struct {
 func Inspect(d *Document, q Query) DocumentView {
 	relevant := map[string]bool{}
 	for _, i := range d.Diagnostics {
-		if i.Key != "" && ((q.Filter == "errors" && i.Severity == "error") || (q.Filter == "warnings" && i.Severity == "warning")) {
+		if i.Key != "" && ((q.Filter == "errors" && i.Severity == "error") || (q.Filter == "warnings" && i.Severity == "warning") || (q.Filter == "references" && (i.Code == "unresolved reference" || i.Code == "cyclic reference"))) {
 			relevant[i.Key] = true
 		}
 	}
@@ -183,7 +184,7 @@ func Inspect(d *Document, q Query) DocumentView {
 	}
 	v := DocumentView{Summary: d.Summary(), Entries: []Entry{}, Diagnostics: d.Diagnostics, Page: max(0, q.Page)}
 	for _, e := range d.Entries {
-		if (q.Filter == "errors" || q.Filter == "warnings") && !relevant[e.Key] {
+		if (q.Filter == "errors" || q.Filter == "warnings" || q.Filter == "references") && !relevant[e.Key] {
 			continue
 		}
 		if !strings.Contains(strings.ToLower(e.Key), strings.ToLower(q.Search)) {

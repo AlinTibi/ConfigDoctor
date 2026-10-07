@@ -15,11 +15,12 @@ const MaxEntries = 100000
 const MaxDepth = 64
 
 type Diagnostic struct {
-	Severity string `json:"severity"`
-	Code     string `json:"code"`
-	Key      string `json:"key"`
-	Line     int    `json:"line"`
-	Message  string `json:"message"`
+	Severity  string `json:"severity"`
+	Code      string `json:"code"`
+	Key       string `json:"key"`
+	Line      int    `json:"line"`
+	Message   string `json:"message"`
+	Reference string `json:"reference,omitempty"`
 }
 type Entry struct {
 	Key    string `json:"key"`
@@ -35,16 +36,18 @@ type EnvLine struct {
 	Line    int
 }
 type Document struct {
-	nodes       int
-	SourceBytes int          `json:"-"`
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Path        string       `json:"path"`
-	Format      string       `json:"format"`
-	Valid       bool         `json:"valid"`
-	Entries     []Entry      `json:"entries"`
-	Diagnostics []Diagnostic `json:"diagnostics"`
-	EnvLines    []EnvLine    `json:"-"`
+	envExpressions map[string]envExpression
+	EnvReferences  map[string][]EnvReference `json:"-"`
+	nodes          int
+	SourceBytes    int          `json:"-"`
+	ID             string       `json:"id"`
+	Name           string       `json:"name"`
+	Path           string       `json:"path"`
+	Format         string       `json:"format"`
+	Valid          bool         `json:"valid"`
+	Entries        []Entry      `json:"entries"`
+	Diagnostics    []Diagnostic `json:"diagnostics"`
+	EnvLines       []EnvLine    `json:"-"`
 }
 type Summary struct {
 	ID       string `json:"id"`
@@ -60,7 +63,7 @@ type Summary struct {
 }
 
 func (d *Document) Issue(level, code, key string, line int, message string) {
-	d.Diagnostics = append(d.Diagnostics, Diagnostic{level, code, key, line, message})
+	d.Diagnostics = append(d.Diagnostics, Diagnostic{Severity: level, Code: code, Key: key, Line: line, Message: message})
 	if level == "error" {
 		d.Valid = false
 	}
