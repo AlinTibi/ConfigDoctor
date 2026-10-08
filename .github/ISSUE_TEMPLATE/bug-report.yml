@@ -23,3 +23,8 @@ body:
       label: Expected and actual behavior
     validations:
       required: true
+  - type: textarea
+    id: errors
+    attributes:
+      label: Logs or error messages
+      description: Remove secrets and personal paths before posting.
